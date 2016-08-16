@@ -1,0 +1,39 @@
+{
+  "name": "wmaccess",
+  "version": "1.0.0",
+  "description": "Access server for wealth management",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "wealth management",
+    "access layer"
+  ],
+  "author": "Jason Zhu, James Wei",
+  "license": "ISC",
+  "devDependencies": {
+    "body-parser": "^1.15.0",
+    "cookie-parser": "^1.4.3",
+    "cors": "^2.7.1",
+    "express": "^4.13.4",
+    "lodash": "^4.12.0",
+    "node-xml": "^1.0.2",
+    "request": "^2.72.0",
+    "xml2json-light": "^1.0.4"
+  },
+  "dependencies": {
+    "body-parser": "",
+    "cors": "",
+    "errorhandler": "",
+    "express": "",
+    "express-session": "",
+    "generic-pool": "",
+    "log4js": "",
+    "moment": "",
+    "mysql": "",
+    "nodemailer": "^1.11.0",
+    "protobufjs": "",
+    "serve-favicon": ""
+  }
+}
