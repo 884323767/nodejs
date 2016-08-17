@@ -1,113 +1,148 @@
-var path = require('path');
-var fs = require("fs");
-var util = require('../common/util')();
-var mysql = require('mysql');
 var config = require('../config');
-var moment = require('moment');
-const scoreMap = {
-  v1: {
-    common: {
-      '0': 1,
-      '1': 2,
-      '2': 3,
-      '3': 4,
-      '4': 5
-    },
-    five: {
-      '10': 1,
-      '11': 2,
-      '20': 3,
-      '21': 4,
-      '30': 4,
-      '31': 5,
-      '40': 5,
-      '41': 6,
-      '50': 6,
-      '51': 7
-    },
-    seven: {
-      '500': 10,
-      '450': 9,
-      '400': 8,
-      '350': 7,
-      '300': 6,
-      '250': 5,
-      '200': 4,
-      '150': 3,
-      '100': 2,
-      '50': 1
-    },
-    eight: {
-      '100': 0.1,
-      '200': 0.2,
-      '300': 0.3,
-      '400': 0.4,
-      '500': 0.5,
-      '600': 0.6,
-      '700': 0.7,
-      '800': 0.8,
-      '900': 0.9,
-      '1000': 1
-    },
-    nine: {
-      '600': 0.1,
-      '700': 0.2,
-      '800': 0.3,
-      '900': 0.4,
-      '1000': 0.5,
-      '1100': 0.6,
-      '1200': 0.7,
-      '1300': 0.8,
-      '1400': 0.9,
-      '1500': 1,
-      '0': 0
+var Logger = require('../common/logger');
+var logger = Logger();
+var scoreMap = require('./scoreMap');
+
+function scoreAbility(scores) {
+    var result = 0;
+    result = scores[3] + scores[10] + scores[11] + scores[12] + scores[13];
+    if (result >= 5 && result <= 7) {
+        result = 1;
+    } else if (result > 7 && result < 12) {
+        result = 2;
+    } else if (result >= 12 && result <= 16) {
+        result = 3;
+    } else if (result > 16 && result < 20) {
+        result = 4;
+    } else if (result >= 20 && result <= 23) {
+        result = 5;
     }
-  }
-};
+    return result;
+}
+
+function scoreSubject(scores) {
+    var result = 0;
+    result = 2 * scores[1] + 0.5 * scores[7] + scores[2] + scores[4] + scores[5] + scores[6];
+    if (result >= 6 && result <= 13) {
+        result = 1;
+    } else if (result > 13 && result <= 16) {
+        result = 2;
+    } else if (result > 16 && result <= 20) {
+        result = 3;
+    } else if (result > 20 && result <= 23) {
+        result = 4;
+    } else if (result > 23 && result <= 31) {
+        result = 5;
+    }
+    return result;
+}
+
+function scoreObject(scores) {
+    var result = 0;
+    result = 0.5 * scores[8] + 0.5 * scores[9];
+    if (result >= 0 && result < 0.1) {
+        result = 1;
+    } else if (result >= 0.1 && result < 0.3) {
+        result = 2;
+    } else if (result >= 0.3 && result <= 0.7) {
+        result = 3;
+    } else if (result >= 0.7 && result < 0.9) {
+        result = 4;
+    } else if (result >= 0.9 && result < 1) {
+        result = 5;
+    }
+    return result;
+}
+
+function willingLevel(subject, object) {
+    var result = 0;
+    var temp;
+    if (subject - object <= 1 && subject - object >= -1) {
+        result = subject;
+    } else {
+        temp = (subject + object) / 2;
+        if (subject > object) {
+            result = Math.floor(temp);
+        } else {
+            result = Math.ceil(temp);
+        }
+    }
+    return result;
+}
+
+function percentCompute(ability, willing, level, map) {
+    var result = 0;
+    var percent = map.percentMap[ability] * map.percentMap[willing];
+    var total = map.percentTotalMap[level];
+    result = percent / total;
+    return result;
+}
 
 function scoreCompute(index, score, result) {
-  console.log(index + '  :' + score);
-  if (typeof score == 'undefined') {
-    result.code = 100;
-    result.err = 'scoreMap err: in ' + index;
-  } else {
-    console.log(index + '  :' + score);
-    result.data += score;
-  }
+    if (typeof score == 'undefined') {
+        result.code = 100;
+        result.err = 'scoreMap err: in the question ' + index;
+        logger.error(result.err);
+
+    } else {
+        result.scores[index] = score;
+    }
 }
 
 var application = {
-  question: function(answer, callback) {
-    var score = 0;
-    var errMsg = null;
-    var result = {
-      data: 0
-    };
-    var temp = 0;
-    answer = answer.split("~");
-    console.log(answer.length);
-    if (answer[0] == 'v1') {
-      for (var index = 1, length = answer.length; index < length; index++) {
-        if (index == 4) {
-          temp = scoreMap.v1.common[answer[index]];
-        }
-        if (index == 5) {
-          scoreCompute(index, scoreMap.v1.five[temp + answer[index]], result);
-          console.log(scoreMap.v1.five[temp + answer[index]]);
-        } else if (index == 7) {
-          scoreCompute(index, scoreMap.v1.seven[answer[index]], result)
-        } else if (index == 8) {
-          scoreCompute(index, scoreMap.v1.eight[answer[index]], result);
-        } else if (index == 9) {
-          scoreCompute(index, scoreMap.v1.nine[answer[index]], result)
+    question: function(answer, callback) {
+        var score = 0;
+        var ability;
+        var subject;
+        var object;
+        var willing;
+        var percent;
+        var level;
+        var result = {
+            data: 0,
+            scores: []
+        };
+        var temp = 0;
+        answer = answer.split("~");
+        logger.info(answer.length);
+        result.scores[0] = answer[0];
+        if (answer[0] == 'v1') {
+            for (var index = 1, length = answer.length; index < length; index++) {
+                if (index == 4) {
+                    temp = scoreMap.v1.common[answer[index]];
+                }
+                if (index == 5) {
+                    scoreCompute(index, scoreMap.v1.five[temp + answer[index]], result);
+                } else if (index == 7) {
+                    scoreCompute(index, scoreMap.v1.seven[answer[index]], result)
+                } else if (index == 8) {
+                    scoreCompute(index, scoreMap.v1.eight[answer[index]], result);
+                } else if (index == 9) {
+                    scoreCompute(index, scoreMap.v1.nine[answer[index]], result)
+                } else {
+                    scoreCompute(index, scoreMap.v1.common[answer[index]], result);
+                }
+            }
+            ability = scoreAbility(result.scores);
+            subject = scoreSubject(result.scores);
+            object = scoreObject(result.scores);
+            willing = willingLevel(subject, object);
+            level = scoreMap.v1.levelMap[willing * 10 + ability]
+            score = level * 20;
+            percent = percentCompute(ability, willing, level, scoreMap.v1);
         } else {
-          scoreCompute(index, scoreMap.v1.common[answer[index]], result);
+            result.err = 'versions do not recognized: ' + answer[0];
+            result.code = 101;
+            logger.error(result.err);
         }
-      }
+        result.data = {
+            ability: ability,
+            willing: willing,
+            score: score,
+            percent: percent
+        };
+        logger.info(result);
+        callback(result.err, result);
     }
-    console.log(result)
-    callback(result.err, result);
-  }
 }
-
 module.exports = application;

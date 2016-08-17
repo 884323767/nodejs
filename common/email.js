@@ -17,9 +17,6 @@ var transporter = nodemailer.createTransport({
 
 var myEmail = function(msg, msgTitle) {
     var title = msgTitle || 'ERROR NOTICE!';
-
-    // var emailTo = 'lewei.li@ruifusoft.com,james.wei@ruifusoft.com,kayson.li@ruifusoft.com,min.chen@ruifusoft.com';
-    // var pNumber = '+8613545069791';
     var emailTo = 'lewei.li@ruifusoft.com';
     msg = "environment:" + config.environment + ' ; msg:' + msg;
     transporter.sendMail({
